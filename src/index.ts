@@ -414,6 +414,65 @@ export class FlashbotsBundleProvider extends providers.JsonRpcProvider {
     }
   }
 
+  public async blxrSubmitBundle(
+    signedBundledTransactions: Array<string>,
+    targetBlockNumber: number,
+    frontrunning: boolean,
+    enable_backrunme: boolean,
+    opts?: FlashbotsOptions
+  ): Promise<FlashbotsTransaction> {
+    const params = {
+      transaction: signedBundledTransactions.map((el) => {
+        return el.replace(/^(0x)/, '')
+      }),
+      block_number: `0x${targetBlockNumber.toString(16)}`,
+      min_timestamp: opts?.minTimestamp,
+      max_timestamp: opts?.maxTimestamp,
+      reverting_hashes: opts?.revertingTxHashes,
+      uuid: opts?.replacementUuid,
+      frontrunning: frontrunning,
+      enable_backrunme: enable_backrunme,
+      mev_builders: {
+        all: ''
+      }
+    }
+
+    const request = JSON.stringify(this.prepareRelayRequest('blxr_submit_bundle', [params]))
+    const response = await this.request(request)
+    if (response.error !== undefined && response.error !== null) {
+      return {
+        error: {
+          message: response.error.message,
+          code: response.error.code
+        }
+      }
+    }
+
+    const bundleTransactions = signedBundledTransactions.map((signedTransaction) => {
+      const transactionDetails = ethers.utils.parseTransaction(signedTransaction)
+      return {
+        signedTransaction,
+        hash: ethers.utils.keccak256(signedTransaction),
+        account: transactionDetails.from || '0x0',
+        nonce: transactionDetails.nonce
+      }
+    })
+
+    return {
+      bundleTransactions,
+      wait: () => this.waitForBundleInclusion(bundleTransactions, targetBlockNumber, TIMEOUT_MS),
+      simulate: () =>
+        this.simulate(
+          bundleTransactions.map((tx) => tx.signedTransaction),
+          targetBlockNumber,
+          undefined,
+          opts?.minTimestamp
+        ),
+      receipts: () => this.fetchReceipts(bundleTransactions),
+      bundleHash: response.result?.bundleHash
+    }
+  }
+
   /**
    * Sends a bundle to Flashbots, supports multiple transaction interfaces.
    * @param bundledTransactions array of transactions, either signed or provided with a signer.
@@ -1093,7 +1152,8 @@ export class FlashbotsBundleProvider extends providers.JsonRpcProvider {
       | 'flashbots_getUserStats'
       | 'flashbots_getBundleStats'
       | 'flashbots_getUserStatsV2'
-      | 'flashbots_getBundleStatsV2',
+      | 'flashbots_getBundleStatsV2'
+      | 'blxr_submit_bundle',
     params: RpcParams
   ) {
     return {
