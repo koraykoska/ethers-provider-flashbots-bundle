@@ -437,7 +437,7 @@ export class FlashbotsBundleProvider extends providers.JsonRpcProvider {
       }
     }
 
-    const request = JSON.stringify(this.prepareRelayRequest('blxr_submit_bundle', [params]))
+    const request = JSON.stringify(this.prepareRelayRequest('blxr_submit_bundle', params))
     const response = await this.request(request)
     if (response.error !== undefined && response.error !== null) {
       return {
@@ -1154,7 +1154,7 @@ export class FlashbotsBundleProvider extends providers.JsonRpcProvider {
       | 'flashbots_getUserStatsV2'
       | 'flashbots_getBundleStatsV2'
       | 'blxr_submit_bundle',
-    params: RpcParams
+    params: RpcParams | any
   ) {
     return {
       method: method,
